@@ -1,0 +1,123 @@
+---
+# Source: infra-chart/templates/service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: example
+  namespace: dev-ncapo
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "3000"
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      protocol: TCP
+      port: 80
+      targetPort: 3000
+  selector:
+    app: example
+
+---
+# Source: infra-chart/templates/deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: example
+  namespace: dev-ncapo
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: example
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: example
+      annotations:
+        karpenter.sh/do-not-disrupt: "true"
+    spec:
+      containers:
+        - name: example
+          image: example
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 3000
+              protocol: TCP
+          readinessProbe:
+            tcpSocket:
+              port: http
+            initialDelaySeconds: 0
+            periodSeconds: 10
+            successThreshold: 3
+            failureThreshold: 1
+            timeoutSeconds: 1
+          resources:
+            limits:
+              cpu: 1000m
+              memory: 2Gi
+            requests:
+              cpu: 500m
+              memory: 2Gi
+          volumeMounts:
+            - name: dev-storage
+              mountPath: /go/pkg/mod
+              subPath: go/pkg/mod
+            - name: dev-storage
+              mountPath: /root/.cache/go-build
+              subPath: root/.cache/go-build
+      volumes:
+        - name: dev-storage
+          persistentVolumeClaim:
+            claimName: example-dev-storage
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: example-dev-storage
+  namespace: dev-ncapo
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: gp3
+  resources:
+    requests:
+      storage: 1Gi
+
+---
+# Source: infra-chart/templates/ingress.yaml
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: example
+  namespace: dev-ncapo
+spec:
+  entryPoints:
+    - us-east-1d
+  routes:
+    - match: Host(`dev-ncapo.example.com`)
+      kind: Rule
+      services:
+        - name: example
+          port: 80
+      middlewares:
+        - name: example-https-forwarded
+        - name: traefik-forward-auth
+          namespace: kube-system
+
+---
+# Source: infra-chart/templates/ingress-forwarded.yaml
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: example-https-forwarded
+  namespace: dev-ncapo
+spec:
+  headers:
+    customRequestHeaders:
+      X-Forwarded-Port: "443"
+      X-Forwarded-Proto: https
