@@ -51,6 +51,13 @@ This might require a Platform/Infrastructure Team
   go run ./main.go
   ```
 
+- Live reload with `air`
+
+  ```shell
+  go install github.com/air-verse/air@latest
+  air -c air.toml
+  ```
+
 - Needs some docs for each service (Python, NodeJS)
 - What Environment Variables should be set?
 - Docs need to be maintained

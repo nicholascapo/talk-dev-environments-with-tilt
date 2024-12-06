@@ -1,8 +1,8 @@
 root = "."
 
 [build]
-bin = "/go/bin/example"
-cmd = "go build -v -o /go/bin/example /go/src/example"
+bin = "example"
+cmd = "go build -v -o example example"
 
 [color]
 app = ""
